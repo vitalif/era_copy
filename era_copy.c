@@ -1,7 +1,8 @@
 /**
  * Parses XML block lists produced by dm-era `era_invalidate` tool
- * from `thin-provisioning-tools` and copies these blocks from/to
- * specified device(s)
+ * from `thin-provisioning-tools` from standard input, reads specified blocks
+ * from the data device and creates a stream with copied blocks on standard output.
+ * The stream can then be consumed by `era_apply`.
  *
  * Author: Vitaliy Filippov <vitalif@yourcmc.ru>, 2019
  * License: GNU GPLv3.0 or later
@@ -25,11 +26,6 @@ void copy_blocks(int src, int dst, off64_t start, off64_t length)
 {
 	off64_t copied = 0, cur = start;
 	ssize_t fact = 0;
-	if (lseek64(dst, start, 0) < 0)
-	{
-		fprintf(stderr, "Failed to lseek output file: %s\n", strerror(errno));
-		exit(1);
-	}
 	while (length > copied)
 	{
 		fact = sendfile64(dst, src, &cur, length-copied > MAX_COPY ? MAX_COPY : length-copied);
@@ -43,17 +39,19 @@ void copy_blocks(int src, int dst, off64_t start, off64_t length)
 	}
 }
 
-void read_era_invalidate_and_copy(FILE *fp, int src, int dst, int metadata_block_size)
+void read_era_invalidate_and_copy(FILE *fp, int src, int metadata_block_size)
 {
 	// read input XML
+	char* signature = "ERARANGE";
 	char buf[XML_BUFSIZE] = { 0 };
-	off64_t start = 0, length = 0;
+	char c = 0;
+	long long start = 0, length = 0;
 	if (fgets(buf, XML_BUFSIZE, fp) == NULL)
 	{
 		fprintf(stderr, "Input block list is empty\n");
 		exit(0);
 	}
-	if (sscanf(buf, " <blocks >") == 0)
+	if (sscanf(buf, " <blocks > %c", &c) == 0 || c != 0)
 	{
 		fprintf(stderr, "<blocks> expected, but \"%s\" found\n", buf);
 		exit(1);
@@ -62,65 +60,53 @@ void read_era_invalidate_and_copy(FILE *fp, int src, int dst, int metadata_block
 	{
 		if (sscanf(buf, " <range begin = \" %lld \" end = \" %lld \" />", &start, &length) == 2)
 		{
-			copy_blocks(src, dst, start*metadata_block_size*512, length*metadata_block_size*512);
+			length = length-start;
 		}
 		else if (sscanf(buf, " <block block = \" %lld \" />", &start) == 1)
 		{
-			copy_blocks(src, dst, start*metadata_block_size*512, metadata_block_size*512);
+			length = 1;
 		}
 		else
 		{
-			fprintf(stderr, "<range begin=NUMBER end=NUMBER /> or <block block=NUMBER /> expected, but \"%s\" found\n", buf);
-			exit(1);
+			break;
 		}
+		start = start*metadata_block_size*512;
+		length = length*metadata_block_size*512;
+		// write a very simple binary format: signature, start, length, data, ...
+		write(1, signature, 8);
+		write(1, &start, 8);
+		write(1, &length, 8);
+		copy_blocks(src, 1, start, length);
 	}
-	buf[0] = '\0';
-	if (fgets(buf, XML_BUFSIZE, fp) == NULL ||
-		sscanf(buf, " </blocks >") == 0)
+	if (sscanf(buf, " </blocks > %c", &c) == 0 || c != 0)
 	{
 		fprintf(stderr, "</blocks> expected, but \"%s\" found\n", buf);
 		exit(1);
 	}
 }
 
-void era_copy(char *src_path, const char *dst_path, int metadata_block_size)
+void era_copy(char *src_path, int metadata_block_size)
 {
-	int src, dst;
-	struct stat statbuf;
+	int src;
 	src = open(src_path, O_RDONLY|O_LARGEFILE);
 	if (src < 0)
 	{
 		fprintf(stderr, "Failed to open %s for reading: %s\n", src_path, strerror(errno));
 		exit(1);
 	}
-	if (stat(dst_path, &statbuf) != 0)
-	{
-		fprintf(stderr, "Failed to stat %s: %s\n", dst_path, strerror(errno));
-		exit(1);
-	}
-	// prevent writing to mounted devices
-	dst = open(dst_path, ((statbuf.st_mode & S_IFBLK) ? O_EXCL : 0) | O_WRONLY | O_LARGEFILE);
-	if (src < 0)
-	{
-		fprintf(stderr, "Failed to open %s for writing: %s\n", dst_path, strerror(errno));
-		exit(1);
-	}
-	read_era_invalidate_and_copy(stdin, src, dst, metadata_block_size);
-	// fsync and close
-	fsync(dst);
-	close(dst);
+	read_era_invalidate_and_copy(stdin, src, metadata_block_size);
 	close(src);
 }
 
 int main(int narg, char *args[])
 {
-	if (narg < 4)
+	if (narg < 3)
 	{
 		fprintf(stderr,
 			"era_copy - parses era_invalidate output and copies specified blocks from one file/device to another\n"
 			"(c) Vitaliy Filippov, 2019+, distributed under the terms of GNU GPLv3.0 or later license\n"
 			"USAGE:\nera_invalidate --metadata-snapshot --written-since <ERA> <META_DEVICE> |\\\n"
-			"    era_copy <METADATA_BLOCK_SIZE> <DATA_DEVICE> <DEST_DEVICE>\n"
+			"    era_copy <METADATA_BLOCK_SIZE> <DATA_DEVICE>\n"
 		);
 		exit(1);
 	}
@@ -130,6 +116,6 @@ int main(int narg, char *args[])
 		fprintf(stderr, "Incorrect metadata_block_size = %d\n", bs);
 		exit(1);
 	}
-	era_copy(args[2], args[3], bs);
+	era_copy(args[2], bs);
 	return 0;
 }
