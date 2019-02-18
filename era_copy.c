@@ -39,7 +39,7 @@ void copy_blocks(int src, int dst, off64_t start, off64_t length)
 	}
 }
 
-void read_era_invalidate_and_copy(FILE *fp, int src, int metadata_block_size)
+void read_era_invalidate_and_copy(FILE *fp, int src, int era_block_size)
 {
 	// read input XML
 	char* signature = "ERARANGE";
@@ -70,8 +70,8 @@ void read_era_invalidate_and_copy(FILE *fp, int src, int metadata_block_size)
 		{
 			break;
 		}
-		start = start*metadata_block_size*512;
-		length = length*metadata_block_size*512;
+		start = start*era_block_size;
+		length = length*era_block_size;
 		// write a very simple binary format: signature, start, length, data, ...
 		write(1, signature, 8);
 		write(1, &start, 8);
@@ -85,7 +85,7 @@ void read_era_invalidate_and_copy(FILE *fp, int src, int metadata_block_size)
 	}
 }
 
-void era_copy(char *src_path, int metadata_block_size)
+void era_copy(char *src_path, int era_block_size)
 {
 	int src;
 	src = open(src_path, O_RDONLY|O_LARGEFILE);
@@ -94,7 +94,7 @@ void era_copy(char *src_path, int metadata_block_size)
 		fprintf(stderr, "Failed to open %s for reading: %s\n", src_path, strerror(errno));
 		exit(1);
 	}
-	read_era_invalidate_and_copy(stdin, src, metadata_block_size);
+	read_era_invalidate_and_copy(stdin, src, era_block_size);
 	close(src);
 }
 
@@ -105,15 +105,20 @@ int main(int narg, char *args[])
 		fprintf(stderr,
 			"era_copy - parses era_invalidate output and copies specified blocks from one file/device to another\n"
 			"(c) Vitaliy Filippov, 2019+, distributed under the terms of GNU GPLv3.0 or later license\n"
+			"\n"
 			"USAGE:\nera_invalidate --metadata-snapshot --written-since <ERA> <META_DEVICE> |\\\n"
-			"    era_copy <METADATA_BLOCK_SIZE> <DATA_DEVICE>\n"
+			"    era_copy <ERA_BLOCK_SIZE> <DATA_DEVICE>\n"
+			"\n"
+			"ERA_BLOCK_SIZE is the block size you used when creating dm-era device\n"
+			"You can take it from `dmsetup table <DATA_DEVICE>`: it's the last number in the table\n"
+			"For example, in `0 3625546496 era 259:3 259:2 65536` it's 65536\n"
 		);
 		exit(1);
 	}
 	int bs = atoi(args[1]);
 	if (bs < 1)
 	{
-		fprintf(stderr, "Incorrect metadata_block_size = %d\n", bs);
+		fprintf(stderr, "Incorrect era_block_size = %d\n", bs);
 		exit(1);
 	}
 	era_copy(args[2], bs);
