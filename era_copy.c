@@ -21,6 +21,7 @@
 
 #define XML_BUFSIZE 1024
 #define MAX_COPY 0x10000000
+#define SIGNATURE "ERARANGE"
 
 void copy_blocks(int src, int dst, off64_t start, off64_t length)
 {
@@ -42,7 +43,6 @@ void copy_blocks(int src, int dst, off64_t start, off64_t length)
 void read_era_invalidate_and_copy(FILE *fp, int src, int era_block_size)
 {
 	// read input XML
-	char* signature = "ERARANGE";
 	char buf[XML_BUFSIZE] = { 0 };
 	char c = 0;
 	long long start = 0, length = 0;
@@ -72,8 +72,8 @@ void read_era_invalidate_and_copy(FILE *fp, int src, int era_block_size)
 		}
 		start = start*era_block_size;
 		length = length*era_block_size;
-		// write a very simple binary format: signature, start, length, data, ...
-		write(1, signature, 8);
+		// write a very simple binary format: SIGNATURE, start, length, data, ...
+		write(1, SIGNATURE, 8);
 		write(1, &start, 8);
 		write(1, &length, 8);
 		copy_blocks(src, 1, start, length);
@@ -103,11 +103,11 @@ int main(int narg, char *args[])
 	if (narg < 3)
 	{
 		fprintf(stderr,
-			"era_copy - parses era_invalidate output and copies specified blocks from one file/device to another\n"
+			"era_copy - parses era_invalidate output and saves changed blocks to a stream\n"
 			"(c) Vitaliy Filippov, 2019+, distributed under the terms of GNU GPLv3.0 or later license\n"
 			"\n"
 			"USAGE:\nera_invalidate --metadata-snapshot --written-since <ERA> <META_DEVICE> |\\\n"
-			"    era_copy <ERA_BLOCK_SIZE> <DATA_DEVICE>\n"
+			"    era_copy <ERA_BLOCK_SIZE> <DATA_DEVICE> > era_copy.bin\n"
 			"\n"
 			"ERA_BLOCK_SIZE is the block size you used when creating dm-era device\n"
 			"You can take it from `dmsetup table <DATA_DEVICE>`: it's the last number in the table\n"
