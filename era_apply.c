@@ -95,14 +95,25 @@ void read_era_copy_and_apply(int src, int dst)
 void era_apply(char *dst_path)
 {
 	struct stat sb;
-	int dst;
-	if (stat(dst_path, &sb) != 0)
+	int dst, flags = O_WRONLY | O_LARGEFILE;
+	if (stat(dst_path, &sb) == 0)
 	{
-		fprintf(stderr, "Failed to stat %s: %s\n", dst_path, strerror(errno));
-		exit(1);
+		// prevent writing to mounted devices
+		flags = flags | ((sb.st_mode & S_IFBLK) ? O_EXCL : 0);
 	}
-	// prevent writing to mounted devices
-	dst = open(dst_path, ((sb.st_mode & S_IFBLK) ? O_EXCL : 0) | O_WRONLY | O_LARGEFILE);
+	else
+	{
+		if (errno == ENOENT)
+		{
+			flags = flags | O_CREAT;
+		}
+		else
+		{
+			fprintf(stderr, "Failed to stat %s: %s\n", dst_path, strerror(errno));
+			exit(1);
+		}
+	}
+	dst = open(dst_path, flags, 0644);
 	if (dst < 0)
 	{
 		fprintf(stderr, "Failed to open %s for writing: %s\n", dst_path, strerror(errno));
