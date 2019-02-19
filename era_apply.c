@@ -50,7 +50,7 @@ void apply_blocks(int src, int dst, off64_t start, off64_t length)
 		written = 0;
 		while (written < fact)
 		{
-			fact_write = write(dst, copy_buffer, fact-written);
+			fact_write = write(dst, copy_buffer+written, fact-written);
 			if (fact_write <= 0)
 			{
 				fprintf(stderr, "Write error: %s\n", strerror(errno));

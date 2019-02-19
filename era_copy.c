@@ -35,7 +35,6 @@ void copy_blocks(int src, int dst, off64_t start, off64_t length)
 			fprintf(stderr, "Failed to copy data: %s\n", strerror(errno));
 			exit(1);
 		}
-		cur += fact;
 		copied += fact;
 	}
 }
