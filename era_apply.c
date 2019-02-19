@@ -21,7 +21,7 @@
 
 static void* copy_buffer = NULL;
 
-void apply_blocks(int src, int dst, off64_t start, off64_t length)
+void apply_blocks(int src, int dst, off64_t start, off64_t length, long long *total, long long *prev_total)
 {
 	off64_t copied = 0;
 	ssize_t fact = 0, written = 0, fact_write = 0;
@@ -59,13 +59,30 @@ void apply_blocks(int src, int dst, off64_t start, off64_t length)
 			written += fact_write;
 		}
 		copied += fact;
+		if (total != NULL)
+		{
+			*total += fact;
+			if (*total > *prev_total + 1048576)
+			{
+				fprintf(stderr, "\r%lld MB...", *total/1048576);
+				*prev_total = *total;
+			}
+		}
 	}
 }
 
-void read_era_copy_and_apply(int src, int dst)
+void read_era_copy_and_apply(int src, int dst, int print_progress)
 {
 	long long sign = 0, start = 0, length = 0;
+	long long total = 0, prev_total = 0; // for printing progress
+	long long *ptr_total = NULL, *ptr_prev_total = NULL;
 	int r;
+	if (print_progress)
+	{
+		setvbuf(stderr, NULL, _IONBF, 0);
+		ptr_total = &total;
+		ptr_prev_total = &prev_total;
+	}
 	while (1)
 	{
 		r = read(src, &sign, 8);
@@ -88,11 +105,15 @@ void read_era_copy_and_apply(int src, int dst)
 			fprintf(stderr, "era_copy signature does not match\n");
 			exit(1);
 		}
-		apply_blocks(src, dst, start, length);
+		apply_blocks(src, dst, start, length, ptr_total, ptr_prev_total);
+	}
+	if (print_progress)
+	{
+		fprintf(stderr, "\n");
 	}
 }
 
-void era_apply(char *dst_path)
+void era_apply(char *dst_path, int print_progress)
 {
 	struct stat sb;
 	int dst, flags = O_WRONLY | O_LARGEFILE;
@@ -119,7 +140,7 @@ void era_apply(char *dst_path)
 		fprintf(stderr, "Failed to open %s for writing: %s\n", dst_path, strerror(errno));
 		exit(1);
 	}
-	read_era_copy_and_apply(0, dst);
+	read_era_copy_and_apply(0, dst, print_progress);
 	// fsync and close
 	fsync(dst);
 	close(dst);
@@ -127,16 +148,17 @@ void era_apply(char *dst_path)
 
 int main(int narg, char *args[])
 {
-	if (narg < 2)
+	int print_progress = 0;
+	if (narg < 2 || ((print_progress = !strcmp(args[1], "--progress")) && narg < 3))
 	{
 		fprintf(stderr,
 			"era_apply - applies era_copy output to a file or block device\n"
 			"(c) Vitaliy Filippov, 2019+, distributed under the terms of GNU GPLv3.0 or later license\n"
 			"\n"
-			"USAGE:\nera_apply DESTINATION < era_copy_output.bin\n"
+			"USAGE:\nera_apply [--progress] DESTINATION < era_copy_output.bin\n"
 		);
 		exit(1);
 	}
-	era_apply(args[1]);
+	era_apply(args[print_progress ? 2 : 1], print_progress);
 	return 0;
 }
