@@ -76,7 +76,7 @@ void read_era_invalidate_and_copy(FILE *fp, int src, int era_block_size, int pri
 		if (offsets_len >= offsets_alloc)
 		{
 			offsets_alloc += 4096/sizeof(long long);
-			offsets = (long long*)realloc(offsets, offsets_alloc*2*sizeof(long long));
+			offsets = (long long*)realloc(offsets, offsets_alloc*sizeof(long long));
 		}
 		offsets[offsets_len++] = start;
 		offsets[offsets_len++] = length;
