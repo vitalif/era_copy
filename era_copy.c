@@ -8,6 +8,7 @@
  * License: GNU GPLv3.0 or later
  */
 
+#define _GNU_SOURCE
 #define _LARGEFILE64_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -122,7 +123,8 @@ void era_copy(char *src_path, int era_block_size, int print_progress)
 	int src = -1;
 	if (src_path != NULL)
 	{
-		src = open(src_path, O_RDONLY|O_LARGEFILE);
+		// dm-era device may return incorrect data when used without O_DIRECT O_o
+		src = open(src_path, O_RDONLY|O_LARGEFILE|O_DIRECT);
 		if (src < 0)
 		{
 			fprintf(stderr, "Failed to open %s for reading: %s\n", src_path, strerror(errno));
