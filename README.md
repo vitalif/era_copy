@@ -22,20 +22,22 @@ and seems to handle fsyncs correctly.
    on disk at a time, but anyway, a 512 MB or 1 GB partition will be more than enough.
    For example you can shrink the main partition a bit and add the dm-era partition after it.
 2. Zero out the new metadata partition: `dd if=/dev/zero of=<META_PARTITION> bs=1048576`
-3. Copy `local-block_dm-era.sh` to `/etc/initramfs-tools/scripts/local-block`
+3. Copy `zz_dm-era.sh` to `/etc/initramfs-tools/scripts/local-block`
    and adjust `DATA_DEVICE`, `META_DEVICE` and `ERA_DEVICE_NAME` in it.
-   Use GPT and partition UUIDs to be safe because dm-era doesn't check
-   if you supply the correct partition to it.
-4. Edit `/etc/fstab` and change your actual device to `/dev/mapper/<ERA_DEVICE_NAME>`,
+   Use partition IDs (`/dev/disk/by-partuuid/*` for GPT partitions, `/dev/disk/by-id/md-uuid-*` for mdadm, etc)
+   to be safe because dm-era doesn't check if you supply correct partitions to it.
+4. Add `dm_era` to `/etc/initramfs-tools/modules`.
+5. Edit `/etc/fstab` and change your actual device to `/dev/mapper/<ERA_DEVICE_NAME>`,
    for example `/dev/mapper/root_era`.
-5. Repeat it for more partitions if you want.
-6. If you do it for the root partition also change `/etc/default/grub`:
+6. Repeat it for more partitions if you want.
+7. Run `update-initramfs -u -k all`.
+8. If you do it for the root partition also change `/etc/default/grub`:
    `GRUB_CMDLINE_LINUX="root=/dev/mapper/root_era"` and refresh grub config with `update-grub`.
-7. Reboot.
-8. Install dm-era tools (`era_invalidate`) with `apt-get install thin-provisioning-tools` on your target host.
-9. Install `era_copy` and `era_apply` (`make install` from this repository) on both hosts (target host and backup host).
-10. Do an initial full partition backup with block-level copy.
-11. Now you can use `backup.sh` to perform incremental backups of the dm-era device
+9. Reboot.
+10. Install dm-era tools (`era_invalidate`) with `apt-get install thin-provisioning-tools` on your target host.
+11. Install `era_copy` and `era_apply` (`make install` from this repository) on both hosts (target host and backup host).
+12. Do an initial full partition backup with block-level copy.
+13. Now you can use `backup.sh` to perform incremental backups of the dm-era device
     over ssh from the backup host. Just change variables at the top of the script so it matches
     your device configuration.
 
