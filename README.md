@@ -36,7 +36,8 @@ and seems to handle fsyncs correctly.
 9. Reboot.
 10. Install dm-era tools (`era_invalidate`) with `apt-get install thin-provisioning-tools` on your target host.
 11. Install `era_copy` and `era_apply` (`make install` from this repository) on both hosts (target host and backup host).
-12. Do an initial full partition backup with block-level copy.
+12. Do an initial full partition backup with block-level copy. For example, to copy an ext4 filesystem
+    to another host over ssh run: `ssh root@host "e2image -f -p -ra /dev/mapper/root_era - | gzip" | gzip -d | cp --sparse=always /dev/stdin rootfs.bin`.
 13. Now you can use `backup.sh` to perform incremental backups of the dm-era device
     over ssh from the backup host. Just change variables at the top of the script so it matches
     your device configuration.
