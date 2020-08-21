@@ -1,6 +1,8 @@
 #!/bin/bash
 # Example incremental backup script
 
+set -e
+
 HOST=your-host.ru
 ERA_DEVICE=md1p3_era
 METADATA_DEVICE=/dev/md1p4
@@ -20,14 +22,14 @@ for i in {1..5}; do
         dmsetup message $ERA_DEVICE 0 take_metadata_snap >/dev/null && \
         (era_invalidate --metadata-snapshot --written-since $ERA $METADATA_DEVICE | era_copy $GRANULARITY | perl -pe 's/\s+.*//')"`
 
-    if [ $SIZE -le 0 ]; then
+    if [ "$SIZE" -le 0 ]; then
         echo "Failed to estimate delta size"
         exit 1
     fi
 
     echo "Estimated delta size $((SIZE/1048576)) MB"
 
-    if [ $SIZE -le $FREEZE_LIMIT ]; then
+    if [ "$SIZE" -le $FREEZE_LIMIT ]; then
 
         echo "Performing final copy with fsfreeze"
 
@@ -38,7 +40,10 @@ for i in {1..5}; do
             (era_invalidate --metadata-snapshot --written-since $ERA $METADATA_DEVICE | era_copy --progress $GRANULARITY /dev/mapper/$ERA_DEVICE | gzip); \
             fsfreeze --unfreeze $MOUNTPOINT >/dev/null" | \
             gzip -d | era_apply $DIR/$FILE) && \
-            (ssh root@$HOST "dmsetup status $ERA_DEVICE | perl -e 'print [split /\s+/, <>]->[5]'" > $DIR/era) || exit 1
+            (ssh root@$HOST "dmsetup status $ERA_DEVICE | perl -e 'print [split /\s+/, <>]->[5]'" > $DIR/era_new) || exit 1
+        mv $DIR/era_new $DIR/era
+
+        echo "Copied up to era "`cat $DIR/era`
 
         exit 0
 
@@ -50,7 +55,8 @@ for i in {1..5}; do
             dmsetup message $ERA_DEVICE 0 take_metadata_snap >/dev/null && \
             (era_invalidate --metadata-snapshot --written-since $ERA $METADATA_DEVICE | era_copy --progress $GRANULARITY /dev/mapper/$ERA_DEVICE | gzip)" | \
             gzip -d | era_apply $DIR/$FILE) && \
-            (ssh root@$HOST "dmsetup status $ERA_DEVICE | perl -e 'print [split /\s+/, <>]->[5]'" > $DIR/era) || exit 1
+            (ssh root@$HOST "dmsetup status $ERA_DEVICE | perl -e 'print [split /\s+/, <>]->[5]'" > $DIR/era_new) || exit 1
+        mv $DIR/era_new $DIR/era
 
     fi
 done
