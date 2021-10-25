@@ -1,0 +1,14 @@
+[Unit]
+Description=dm-era for /var
+DefaultDependencies=no
+StartLimitInterval=0
+Before=local-fs-pre.target
+DefaultDependencies=no
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/modprobe dm_era ; /sbin/dmsetup create md2p4_era --table "0 3625547743 era /dev/md2p3 /dev/md2p4 1024"
+
+[Install]
+WantedBy=sysinit.target
