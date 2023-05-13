@@ -45,9 +45,11 @@ void read_era_invalidate_and_copy(FILE *fp, int src, int era_block_size, int pri
 	// read input XML
 	char buf[XML_BUFSIZE] = { 0 };
 	char c = 0;
+	long long srcsize = 0;
 	long long start = 0, length = 0, total = 0;
 	long long *offsets = NULL;
 	int i, offsets_alloc = 0, offsets_len = 0;
+	lseek64(src, 0, SEEK_SET);
 	if (fgets(buf, XML_BUFSIZE, fp) == NULL)
 	{
 		fprintf(stderr, "Input block list is empty\n");
@@ -91,6 +93,20 @@ void read_era_invalidate_and_copy(FILE *fp, int src, int era_block_size, int pri
 	}
 	if (src >= 0)
 	{
+		srcsize = lseek64(src, 0, SEEK_END);
+		if (srcsize < 0)
+		{
+			fprintf(stderr, "Can't determine input size\n");
+			exit(1);
+		}
+		for (i = 0; i < offsets_len; i += 2)
+		{
+			if (offsets[i] >= srcsize)
+				break;
+			if (offsets[i]+offsets[i+1] > srcsize)
+				offsets[i+1] = srcsize-offsets[i];
+		}
+		offsets_len = i;
 		long long copied = 0, prev_copied = 0;
 		if (print_progress)
 		{
